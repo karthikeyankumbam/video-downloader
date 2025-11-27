@@ -34,6 +34,7 @@ jobs:
           PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'ENDSSH'
+            # Don't exit on error for yt-dlp installation - use multiple fallback methods
             set -e
             
             # Create app directory if it doesn't exist
@@ -81,16 +82,53 @@ jobs:
               sudo apt-get install -y nodejs
             fi
             
+            # Install yt-dlp (handle externally-managed-environment error)
             if ! command -v yt-dlp &> /dev/null; then
               echo "Installing yt-dlp..."
-              sudo apt-get install -y python3 python3-pip python3-venv
-              # Use --break-system-packages flag for Ubuntu 24.04+ externally-managed-environment
-              # Try with --break-system-packages first (Ubuntu 24.04+), fallback to regular install
-              sudo pip3 install --break-system-packages yt-dlp 2>/dev/null || \
-              sudo pip3 install yt-dlp || \
-              (echo "Failed to install yt-dlp via pip, trying alternative..." && \
-               sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
-               sudo chmod a+rx /usr/local/bin/yt-dlp)
+              
+              # Method 1: Direct binary download (no Python dependencies - most reliable)
+              echo "Downloading yt-dlp binary..."
+              sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+              sudo chmod a+rx /usr/local/bin/yt-dlp
+              
+              # Verify installation
+              if yt-dlp --version > /dev/null 2>&1; then
+                echo "✅ yt-dlp installed successfully (binary)"
+              else
+                echo "Binary method failed, trying pipx..."
+                
+                # Method 2: pipx (manages its own virtual environment)
+                set +e  # Don't exit on error
+                sudo apt-get install -y pipx python3-venv
+                export PATH="$HOME/.local/bin:$PATH"
+                pipx install yt-dlp 2>/dev/null
+                
+                if yt-dlp --version > /dev/null 2>&1; then
+                  echo "✅ yt-dlp installed successfully (pipx)"
+                else
+                  echo "pipx failed, trying pip with --break-system-packages..."
+                  
+                  # Method 3: pip with --break-system-packages flag
+                  sudo apt-get install -y python3 python3-pip
+                  sudo pip3 install --break-system-packages yt-dlp 2>&1
+                  
+                  if yt-dlp --version > /dev/null 2>&1; then
+                    echo "✅ yt-dlp installed successfully (pip)"
+                  else
+                    echo "⚠️ WARNING: yt-dlp installation failed, but continuing deployment..."
+                  fi
+                fi
+                set -e  # Re-enable exit on error
+              fi
+              
+              # Final check
+              if command -v yt-dlp &> /dev/null; then
+                echo "✅ yt-dlp ready: $(yt-dlp --version)"
+              else
+                echo "❌ ERROR: yt-dlp not available - deployment may fail!"
+              fi
+            else
+              echo "✅ yt-dlp already installed: $(yt-dlp --version)"
             fi
             
             if ! command -v pm2 &> /dev/null; then
