@@ -137,7 +137,14 @@ jobs:
             fi
             
             # Install/update Node.js dependencies
-            npm ci --production
+            # Use npm ci if package-lock.json exists, otherwise use npm install
+            if [ -f "package-lock.json" ]; then
+              echo "Installing dependencies with npm ci..."
+              npm ci --production
+            else
+              echo "package-lock.json not found, using npm install..."
+              npm install --production --omit=dev
+            fi
             
             # Create logs directory
             mkdir -p logs
