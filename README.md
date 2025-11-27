@@ -118,13 +118,22 @@ The server runs on port 3000 by default. You can change this by:
   - Check with: `yt-dlp --version`
   - Install with: `brew install yt-dlp` (macOS) or `pip install yt-dlp` (Linux/Windows)
   
-- **403 Forbidden errors:** With yt-dlp, these are rare but can happen if:
-  - The video is age-restricted and you're not signed in
-  - The video is region-blocked
-  - YouTube has temporary restrictions
-  - Solution: Try a different publicly available video
+- **403 Forbidden errors / Bot Detection:** YouTube may block automated requests:
+  - YouTube has strict bot detection that can block downloads
+  - Some videos require authentication (cookies)
+  - Solution: 
+    - Try a different video
+    - Wait a few minutes and retry
+    - The app automatically tries multiple player clients (android, ios, web, etc.)
+    - Ensure yt-dlp is updated to the latest version
 
-**Note:** yt-dlp is the most reliable YouTube downloader and actively maintained. It handles YouTube's frequent changes automatically.
+- **"Sign in to confirm you're not a bot" error:**
+  - This means YouTube is blocking automated requests
+  - The app tries multiple methods to bypass this
+  - Some videos may not be downloadable due to restrictions
+  - Solution: Try a different video or wait and retry
+
+**Note:** yt-dlp is the most reliable YouTube downloader and actively maintained. However, YouTube's bot detection can sometimes block downloads. The app includes multiple fallback methods to handle this.
 
 ## 🚀 Deployment
 
