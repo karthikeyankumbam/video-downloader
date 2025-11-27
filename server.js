@@ -63,23 +63,29 @@ app.post('/api/video-info', async (req, res) => {
     }
 
     // Get video info using yt-dlp with options to bypass bot detection
-    const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --no-warnings "${url}"`;
-    
+    // Try multiple player clients in order of preference
+    const playerClients = ['android', 'ios', 'web', 'mweb'];
     let videoInfo;
-    try {
-      const { stdout } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
-      videoInfo = JSON.parse(stdout);
-    } catch (error) {
-      console.error('yt-dlp error:', error.message);
-      // Try with different player client if first attempt fails
+    let lastError = null;
+    
+    for (const client of playerClients) {
       try {
-        console.log('Retrying with alternative player client...');
-        const retryCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=android" --no-warnings "${url}"`;
-        const { stdout } = await execAsync(retryCommand, { maxBuffer: 10 * 1024 * 1024 });
+        const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --no-warnings --quiet "${url}"`;
+        console.log(`Trying with player_client=${client}...`);
+        const { stdout } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
         videoInfo = JSON.parse(stdout);
-      } catch (retryError) {
-        throw new Error(`Failed to fetch video info: ${error.message}`);
+        console.log(`Success with player_client=${client}`);
+        break; // Success, exit loop
+      } catch (error) {
+        lastError = error;
+        console.log(`Failed with player_client=${client}, trying next...`);
+        continue; // Try next client
       }
+    }
+    
+    if (!videoInfo) {
+      console.error('All player clients failed. Last error:', lastError?.message);
+      throw new Error(`Failed to fetch video info. YouTube may be blocking requests. Please try again later or try a different video.`);
     }
 
     // Extract formats
@@ -156,20 +162,25 @@ app.get('/api/download', async (req, res) => {
     }
 
     // Get video info for filename with bot detection bypass
-    const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --no-warnings "${url}"`;
+    // Try multiple player clients
+    const playerClients = ['android', 'ios', 'web', 'mweb'];
     let videoInfo;
-    try {
-      const { stdout } = await execAsync(infoCommand, { maxBuffer: 10 * 1024 * 1024 });
-      videoInfo = JSON.parse(stdout);
-    } catch (error) {
-      // Try with alternative player client
+    let lastError = null;
+    
+    for (const client of playerClients) {
       try {
-        const retryCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=android" --no-warnings "${url}"`;
-        const { stdout } = await execAsync(retryCommand, { maxBuffer: 10 * 1024 * 1024 });
+        const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --no-warnings --quiet "${url}"`;
+        const { stdout } = await execAsync(infoCommand, { maxBuffer: 10 * 1024 * 1024 });
         videoInfo = JSON.parse(stdout);
-      } catch (retryError) {
-        throw new Error(`Failed to get video info: ${error.message}`);
+        break; // Success, exit loop
+      } catch (error) {
+        lastError = error;
+        continue; // Try next client
       }
+    }
+    
+    if (!videoInfo) {
+      throw new Error(`Failed to get video info: ${lastError?.message || 'Unknown error'}`);
     }
 
     const title = sanitizeFilename(videoInfo.title || 'video');
@@ -182,6 +193,7 @@ app.get('/api/download', async (req, res) => {
     res.setHeader('Accept-Ranges', 'bytes');
 
     // Build yt-dlp command with bot detection bypass
+    // Use android client which is most reliable and doesn't require JS runtime
     const formatSelector = format_id ? `-f ${format_id}` : 'best[ext=mp4]';
     const ytDlpArgs = [
       url,
@@ -191,7 +203,7 @@ app.get('/api/download', async (req, res) => {
       '--no-warnings',
       '--quiet',
       '--no-progress',
-      '--extractor-args', 'youtube:player_client=web'
+      '--extractor-args', 'youtube:player_client=android'
     ];
 
     // Spawn yt-dlp process
