@@ -62,8 +62,8 @@ app.post('/api/video-info', async (req, res) => {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    // Get video info using yt-dlp
-    const command = `yt-dlp --dump-json --no-playlist "${url}"`;
+    // Get video info using yt-dlp with options to bypass bot detection
+    const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --no-warnings "${url}"`;
     
     let videoInfo;
     try {
@@ -71,7 +71,15 @@ app.post('/api/video-info', async (req, res) => {
       videoInfo = JSON.parse(stdout);
     } catch (error) {
       console.error('yt-dlp error:', error.message);
-      throw new Error(`Failed to fetch video info: ${error.message}`);
+      // Try with different player client if first attempt fails
+      try {
+        console.log('Retrying with alternative player client...');
+        const retryCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=android" --no-warnings "${url}"`;
+        const { stdout } = await execAsync(retryCommand, { maxBuffer: 10 * 1024 * 1024 });
+        videoInfo = JSON.parse(stdout);
+      } catch (retryError) {
+        throw new Error(`Failed to fetch video info: ${error.message}`);
+      }
     }
 
     // Extract formats
@@ -147,14 +155,21 @@ app.get('/api/download', async (req, res) => {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
-    // Get video info for filename
-    const infoCommand = `yt-dlp --dump-json --no-playlist "${url}"`;
+    // Get video info for filename with bot detection bypass
+    const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --no-warnings "${url}"`;
     let videoInfo;
     try {
       const { stdout } = await execAsync(infoCommand, { maxBuffer: 10 * 1024 * 1024 });
       videoInfo = JSON.parse(stdout);
     } catch (error) {
-      throw new Error(`Failed to get video info: ${error.message}`);
+      // Try with alternative player client
+      try {
+        const retryCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=android" --no-warnings "${url}"`;
+        const { stdout } = await execAsync(retryCommand, { maxBuffer: 10 * 1024 * 1024 });
+        videoInfo = JSON.parse(stdout);
+      } catch (retryError) {
+        throw new Error(`Failed to get video info: ${error.message}`);
+      }
     }
 
     const title = sanitizeFilename(videoInfo.title || 'video');
@@ -166,7 +181,7 @@ app.get('/api/download', async (req, res) => {
     res.setHeader('Content-Type', 'video/mp4');
     res.setHeader('Accept-Ranges', 'bytes');
 
-    // Build yt-dlp command
+    // Build yt-dlp command with bot detection bypass
     const formatSelector = format_id ? `-f ${format_id}` : 'best[ext=mp4]';
     const ytDlpArgs = [
       url,
@@ -175,7 +190,8 @@ app.get('/api/download', async (req, res) => {
       '--no-playlist',
       '--no-warnings',
       '--quiet',
-      '--no-progress'
+      '--no-progress',
+      '--extractor-args', 'youtube:player_client=web'
     ];
 
     // Spawn yt-dlp process

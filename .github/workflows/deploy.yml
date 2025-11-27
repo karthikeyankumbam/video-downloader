@@ -131,6 +131,13 @@ jobs:
               echo "✅ yt-dlp already installed: $(yt-dlp --version)"
             fi
             
+            # Install JavaScript runtime for yt-dlp (needed for YouTube extraction)
+            # QuickJS is lightweight and works well
+            if ! command -v quickjs &> /dev/null && ! command -v nodejs &> /dev/null; then
+              echo "Installing JavaScript runtime (QuickJS) for yt-dlp..."
+              sudo apt-get install -y quickjs || echo "QuickJS not available, Node.js will be used instead"
+            fi
+            
             if ! command -v pm2 &> /dev/null; then
               echo "Installing PM2..."
               sudo npm install -g pm2
