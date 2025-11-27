@@ -131,6 +131,12 @@ jobs:
               echo "✅ yt-dlp already installed: $(yt-dlp --version)"
             fi
             
+            # Update yt-dlp to latest version (important for bypassing YouTube changes)
+            if command -v yt-dlp &> /dev/null; then
+              echo "Updating yt-dlp to latest version..."
+              sudo yt-dlp -U || echo "Update check completed"
+            fi
+            
             # Install JavaScript runtime for yt-dlp (needed for YouTube extraction)
             # QuickJS is lightweight and works well
             if ! command -v quickjs &> /dev/null && ! command -v nodejs &> /dev/null; then
