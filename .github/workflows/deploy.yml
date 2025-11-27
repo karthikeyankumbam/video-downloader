@@ -61,10 +61,18 @@ jobs:
             fi
             
             # Install/update system dependencies if needed
+            # Update package list
+            sudo apt-get update -qq
+            
             if ! command -v git &> /dev/null; then
               echo "Installing Git..."
-              sudo apt-get update -qq
               sudo apt-get install -y git
+            fi
+            
+            # Install lsof for port checking
+            if ! command -v lsof &> /dev/null; then
+              echo "Installing lsof..."
+              sudo apt-get install -y lsof
             fi
             
             if ! command -v node &> /dev/null; then
@@ -75,9 +83,14 @@ jobs:
             
             if ! command -v yt-dlp &> /dev/null; then
               echo "Installing yt-dlp..."
-              sudo apt-get update -qq
-              sudo apt-get install -y python3 python3-pip
-              sudo pip3 install yt-dlp
+              sudo apt-get install -y python3 python3-pip python3-venv
+              # Use --break-system-packages flag for Ubuntu 24.04+ externally-managed-environment
+              # Try with --break-system-packages first (Ubuntu 24.04+), fallback to regular install
+              sudo pip3 install --break-system-packages yt-dlp 2>/dev/null || \
+              sudo pip3 install yt-dlp || \
+              (echo "Failed to install yt-dlp via pip, trying alternative..." && \
+               sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp && \
+               sudo chmod a+rx /usr/local/bin/yt-dlp)
             fi
             
             if ! command -v pm2 &> /dev/null; then
@@ -91,6 +104,17 @@ jobs:
             # Create logs directory
             mkdir -p logs
             
+            # Check if port 3000 is in use and kill the process if needed
+            if lsof -ti:3000 > /dev/null 2>&1; then
+              echo "Port 3000 is in use. Stopping existing process..."
+              sudo lsof -ti:3000 | xargs sudo kill -9 || true
+              sleep 2
+            fi
+            
+            # Stop any existing PM2 processes with the same name
+            pm2 delete youtube-downloader 2>/dev/null || true
+            sleep 1
+            
             # Start or restart application with PM2
             if pm2 list | grep -q "youtube-downloader"; then
               echo "Restarting existing application..."
@@ -99,6 +123,9 @@ jobs:
               echo "Starting new application..."
               pm2 start ecosystem.config.js || pm2 start server.js --name youtube-downloader
             fi
+            
+            # Ensure PM2 startup script is configured
+            pm2 startup systemd -u $USER --hp $HOME 2>/dev/null || true
             
             # Save PM2 process list
             pm2 save
