@@ -71,7 +71,7 @@ app.post('/api/video-info', async (req, res) => {
     for (const client of playerClients) {
       try {
         // Use multiple strategies to bypass bot detection
-        const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet "${url}"`;
+        const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
         console.log(`Trying with player_client=${client}...`);
         const { stdout } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
         videoInfo = JSON.parse(stdout);
@@ -194,7 +194,7 @@ app.get('/api/download', async (req, res) => {
     
     for (const client of playerClients) {
       try {
-        const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet "${url}"`;
+        const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
         const { stdout } = await execAsync(infoCommand, { maxBuffer: 10 * 1024 * 1024 });
         videoInfo = JSON.parse(stdout);
         break; // Success, exit loop
@@ -207,7 +207,7 @@ app.get('/api/download', async (req, res) => {
     // Fallback to default with headers
     if (!videoInfo) {
       try {
-        const fallbackCommand = `yt-dlp --dump-json --no-playlist --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet "${url}"`;
+        const fallbackCommand = `yt-dlp --dump-json --no-playlist --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
         const { stdout } = await execAsync(fallbackCommand, { maxBuffer: 10 * 1024 * 1024 });
         videoInfo = JSON.parse(stdout);
       } catch (fallbackError) {
