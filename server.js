@@ -62,39 +62,68 @@ app.post('/api/video-info', async (req, res) => {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
+    // Helper function to add delay
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
     // Get video info using yt-dlp with options to bypass bot detection
     // Try multiple player clients and methods in order of preference
-    const playerClients = ['android', 'ios', 'tv_embedded', 'web', 'mweb'];
+    // Start with android client first as it's most reliable
+    const playerClients = ['android', 'ios', 'tv_embedded', 'web'];
     let videoInfo;
     let lastError = null;
     
-    for (const client of playerClients) {
+    for (let i = 0; i < playerClients.length; i++) {
+      const client = playerClients[i];
       try {
+        // Add delay between attempts to avoid rate limiting (except for first attempt)
+        if (i > 0) {
+          await delay(2000); // Wait 2 seconds between attempts
+        }
+        
         // Use multiple strategies to bypass bot detection
-        const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
+        // Remove --sleep-requests as it can cause timeouts, add random delay instead
+        const command = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet --no-check-certificates "${url}"`;
         console.log(`Trying with player_client=${client}...`);
-        const { stdout } = await execAsync(command, { maxBuffer: 10 * 1024 * 1024 });
+        const { stdout } = await execAsync(command, { 
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000 // 30 second timeout
+        });
         videoInfo = JSON.parse(stdout);
         console.log(`Success with player_client=${client}`);
         break; // Success, exit loop
       } catch (error) {
         lastError = error;
-        console.log(`Failed with player_client=${client}, trying next...`);
+        const errorMsg = error.message || error.stderr || '';
+        console.log(`Failed with player_client=${client}: ${errorMsg.substring(0, 100)}`);
+        
+        // If it's a bot detection error, continue to next client
+        // If it's another error, also continue (might be network issue)
         continue; // Try next client
       }
     }
     
-    // If all player clients fail, try with default client and additional options
+    // If all specific clients fail, try with web client and additional headers
     if (!videoInfo) {
       try {
-        console.log('Trying with default client and additional bypass options...');
-        const fallbackCommand = `yt-dlp --dump-json --no-playlist --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet "${url}"`;
-        const { stdout } = await execAsync(fallbackCommand, { maxBuffer: 10 * 1024 * 1024 });
+        await delay(2000); // Wait before fallback
+        console.log('Trying with web client and additional headers...');
+        const fallbackCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet --no-check-certificates "${url}"`;
+        const { stdout } = await execAsync(fallbackCommand, { 
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000
+        });
         videoInfo = JSON.parse(stdout);
-        console.log('Success with default client');
+        console.log('Success with web client fallback');
       } catch (fallbackError) {
         console.error('All methods failed. Last error:', lastError?.message || fallbackError?.message);
-        throw new Error(`Failed to fetch video info. YouTube may be blocking automated requests. This video may require authentication or may be restricted. Please try a different video or try again later.`);
+        
+        // Provide helpful error message
+        const errorMsg = lastError?.message || fallbackError?.message || 'Unknown error';
+        if (errorMsg.includes('Sign in to confirm') || errorMsg.includes('bot')) {
+          throw new Error('YouTube is blocking automated requests. This video may require cookies for authentication. Please try:\n- A different video\n- Waiting a few minutes and trying again\n- Using a browser extension that supports cookies');
+        } else {
+          throw new Error(`Failed to fetch video info: ${errorMsg.substring(0, 200)}. Please try a different video or try again later.`);
+        }
       }
     }
 
@@ -186,16 +215,26 @@ app.get('/api/download', async (req, res) => {
       return res.status(400).json({ error: 'Invalid YouTube URL' });
     }
 
+    // Helper function to add delay
+    const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
     // Get video info for filename with bot detection bypass
-    // Try multiple player clients
-    const playerClients = ['android', 'ios', 'tv_embedded', 'web', 'mweb'];
+    // Try multiple player clients, starting with android (most reliable)
+    const playerClients = ['android', 'ios', 'tv_embedded', 'web'];
     let videoInfo;
     let lastError = null;
     
-    for (const client of playerClients) {
+    for (let i = 0; i < playerClients.length; i++) {
+      const client = playerClients[i];
       try {
-        const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
-        const { stdout } = await execAsync(infoCommand, { maxBuffer: 10 * 1024 * 1024 });
+        if (i > 0) {
+          await delay(1500); // Wait between attempts
+        }
+        const infoCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=${client}" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet --no-check-certificates "${url}"`;
+        const { stdout } = await execAsync(infoCommand, { 
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000
+        });
         videoInfo = JSON.parse(stdout);
         break; // Success, exit loop
       } catch (error) {
@@ -204,11 +243,15 @@ app.get('/api/download', async (req, res) => {
       }
     }
     
-    // Fallback to default with headers
+    // Fallback to web client with headers
     if (!videoInfo) {
       try {
-        const fallbackCommand = `yt-dlp --dump-json --no-playlist --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --sleep-requests 1 --no-warnings --quiet "${url}"`;
-        const { stdout } = await execAsync(fallbackCommand, { maxBuffer: 10 * 1024 * 1024 });
+        await delay(1500);
+        const fallbackCommand = `yt-dlp --dump-json --no-playlist --extractor-args "youtube:player_client=web" --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" --referer "https://www.youtube.com/" --no-warnings --quiet --no-check-certificates "${url}"`;
+        const { stdout } = await execAsync(fallbackCommand, { 
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 30000
+        });
         videoInfo = JSON.parse(stdout);
       } catch (fallbackError) {
         throw new Error(`Failed to get video info: ${lastError?.message || fallbackError?.message || 'Unknown error'}`);
@@ -236,8 +279,9 @@ app.get('/api/download', async (req, res) => {
       '--quiet',
       '--no-progress',
       '--extractor-args', 'youtube:player_client=android',
-      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      '--referer', 'https://www.youtube.com/'
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      '--referer', 'https://www.youtube.com/',
+      '--no-check-certificates'
     ];
 
     // Spawn yt-dlp process
