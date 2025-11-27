@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Video Downloader</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🎥 YouTube Video Downloader</h1>
+            <p class="subtitle">Download your favorite YouTube videos in high quality</p>
+        </header>
+
+        <main class="main-content">
+            <div class="card">
+                <div class="input-section">
+                    <div class="input-wrapper">
+                        <input 
+                            type="text" 
+                            id="videoUrl" 
+                            class="url-input" 
+                            placeholder="Paste YouTube video URL here..."
+                            autocomplete="off"
+                        >
+                        <button id="fetchBtn" class="btn btn-primary">
+                            <span id="fetchBtnText">Get Video Info</span>
+                            <span id="fetchBtnLoader" class="loader" style="display: none;"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="errorMessage" class="message error" style="display: none;"></div>
+                <div id="successMessage" class="message success" style="display: none;"></div>
+
+                <div id="videoInfo" class="video-info" style="display: none;">
+                    <div class="video-preview">
+                        <img id="thumbnail" src="" alt="Video thumbnail" class="thumbnail">
+                        <div class="video-details">
+                            <h2 id="videoTitle" class="video-title"></h2>
+                            <div class="video-meta">
+                                <span id="videoAuthor" class="meta-item">👤 <span id="authorName"></span></span>
+                                <span id="videoDuration" class="meta-item">⏱️ <span id="duration"></span></span>
+                                <span id="videoViews" class="meta-item">👁️ <span id="viewCount"></span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="download-section">
+                        <h3>Select Quality:</h3>
+                        <div id="qualityOptions" class="quality-grid"></div>
+                        
+                        <button id="downloadBtn" class="btn btn-download" style="display: none;">
+                            <span>⬇️ Download Video</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-card">
+                <h3>How to use:</h3>
+                <ol class="instructions">
+                    <li>Copy the URL of any YouTube video you want to download</li>
+                    <li>Paste it in the input field above and click "Get Video Info"</li>
+                    <li>View video details and select your preferred quality</li>
+                    <li>Click "Download Video" to save it to your device</li>
+                </ol>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
